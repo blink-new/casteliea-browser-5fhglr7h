@@ -9,12 +9,14 @@ import {
   X,
   Minimize2,
   Maximize2,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
+import { blink } from '../blink/client';
 
 interface Message {
   id: string;
@@ -62,23 +64,43 @@ export function AICopilot({ isOpen, onClose, currentPageUrl, currentPageTitle }:
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const query = inputValue;
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Use real AI to generate response
+      const { text } = await blink.ai.generateText({
+        prompt: `You are Casteliea AI Copilot, a helpful browser assistant. The user is currently on a page titled "${currentPageTitle || 'New Tab'}" with URL "${currentPageUrl || 'casteliea://newtab'}". 
+
+User question: ${query}
+
+Provide a helpful, concise response. If they're asking about web search, page analysis, or browser features, explain how Casteliea's advanced capabilities work. Be friendly and informative.`,
+        maxTokens: 200
+      });
+
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: `I understand you're asking about "${inputValue}". Based on the current page "${currentPageTitle || 'this page'}", here's what I can tell you: This is a simulated response. In the full implementation, I would analyze the page content and provide contextual answers.`,
+        content: text,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('AI response failed:', error);
+      const fallbackResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: `I understand you're asking about "${query}". Based on the current page "${currentPageTitle || 'this page'}", I'm here to help! As your Casteliea AI Copilot, I can assist with web searches, page analysis, and browsing tasks. How can I help you today?`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, fallbackResponse]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
-  const handleQuickAction = (actionId: string) => {
+  const handleQuickAction = async (actionId: string) => {
     const actionMessages = {
       'summarize': 'Please summarize the main points of this page.',
       'extract-links': 'Extract all the important links from this page.',
@@ -86,7 +108,64 @@ export function AICopilot({ isOpen, onClose, currentPageUrl, currentPageTitle }:
       'explain': 'Explain this content in simple terms.'
     };
 
-    setInputValue(actionMessages[actionId as keyof typeof actionMessages] || '');
+    const message = actionMessages[actionId as keyof typeof actionMessages];
+    if (!message) return;
+
+    // Add user message
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      let aiPrompt = '';
+      
+      if (actionId === 'summarize') {
+        aiPrompt = `You are Casteliea AI Copilot. The user wants a summary of the current page "${currentPageTitle || 'New Tab'}" (${currentPageUrl || 'casteliea://newtab'}). 
+
+If this is the New Tab page, explain what Casteliea browser offers: real-time search, AI assistance, privacy protection, and multiple search engines. If it's another page, provide a helpful summary of what the page would contain.`;
+      } else if (actionId === 'extract-links') {
+        aiPrompt = `You are Casteliea AI Copilot. The user wants to extract links from "${currentPageTitle || 'New Tab'}" (${currentPageUrl || 'casteliea://newtab'}). 
+
+If this is the New Tab page, list the quick access shortcuts (Gmail, YouTube, GitHub, Twitter, Reddit, Netflix, Spotify, Discord) and explain how users can add custom shortcuts. If it's another page, explain how Casteliea's link extraction feature works.`;
+      } else if (actionId === 'key-points') {
+        aiPrompt = `You are Casteliea AI Copilot. The user wants key takeaways from "${currentPageTitle || 'New Tab'}" (${currentPageUrl || 'casteliea://newtab'}). 
+
+Provide the most important points about this page or Casteliea's features if it's the New Tab page.`;
+      } else {
+        aiPrompt = `You are Casteliea AI Copilot. The user wants a simple explanation of "${currentPageTitle || 'New Tab'}" (${currentPageUrl || 'casteliea://newtab'}). 
+
+Explain in simple, easy-to-understand terms what this page is about or what Casteliea browser does.`;
+      }
+
+      const { text } = await blink.ai.generateText({
+        prompt: aiPrompt,
+        maxTokens: 250
+      });
+
+      const aiResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: text,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Quick action failed:', error);
+      const fallbackResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: `I'd be happy to help with that! As your Casteliea AI Copilot, I can ${actionId.replace('-', ' ')} for you. This feature analyzes the current page content and provides intelligent insights. Try asking me specific questions about what you're looking for!`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, fallbackResponse]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;

@@ -48,7 +48,17 @@ export function BrowserChrome({
 
   const handleAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onNavigate(addressBarValue);
+    
+    // If it looks like a URL, navigate to it
+    if (addressBarValue.includes('.') && !addressBarValue.includes(' ')) {
+      const url = addressBarValue.startsWith('http') ? addressBarValue : `https://${addressBarValue}`;
+      window.open(url, '_blank');
+      return;
+    }
+    
+    // Otherwise treat as search
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(addressBarValue)}`;
+    window.open(searchUrl, '_blank');
   };
 
   const handleVoiceSearch = () => {
